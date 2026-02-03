@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LogItem, Video, Project } from '../types';
-import { saveVideoFile } from '../utils/db';
+import { uploadVideoFile } from '../supabase';
 
 // Declare globals for TFJS/COCO-SSD loaded via script tags
 declare global {
@@ -291,11 +291,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         
         const videoId = Date.now() + Math.random();
 
-        // Save binary
-        addLog(`存入数据库...`, 'loading');
-        await saveVideoFile(videoId, file);
-
-        const tempUrl = URL.createObjectURL(file); 
+        // Upload to remote storage
+        addLog(`上传至云端...`, 'loading');
+        const { publicUrl } = await uploadVideoFile(file);
         
         const newVideo: Video = {
           id: videoId,
@@ -306,7 +304,7 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           color: randomColor,
           heightClass: heightClass,
           uploadDate: new Date().toISOString().split('T')[0],
-          url: tempUrl,
+          url: publicUrl,
           thumbnail: result.thumbnailBase64,
           projectId: finalProjectId
         };
