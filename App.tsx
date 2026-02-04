@@ -11,7 +11,7 @@ import { AuthModal } from './components/AuthModal';
 import { MOCK_VIDEOS } from './constants';
 import { FilterFolder, TopFilterState, Video, Project } from './types';
 import { getVideoFile, deleteVideoFile, getStorageUsage, exportDatabaseConfig, importDatabaseConfig } from './utils/db';
-import { deleteRemoteVideo, fetchVideos, getCurrentSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from './supabase';
+import { deleteRemoteVideo, fetchVideos, getCurrentSession, onAuthStateChange, signInWithEmail, signOut } from './supabase';
 
 function App() {
   // Data State with Persistence
@@ -492,11 +492,6 @@ function App() {
     showToast('登录成功', 'success');
   };
 
-  const handleSignUp = async (email: string, password: string) => {
-    await signUpWithEmail(email, password);
-    showToast('注册成功，请检查邮箱确认', 'success');
-  };
-
   const handleSignOut = async () => {
     await signOut();
     setVideos([]);
@@ -617,7 +612,6 @@ function App() {
         isOpen={isAuthModalOpen}
         onClose={() => setIsAuthModalOpen(false)}
         onSignIn={handleSignIn}
-        onSignUp={handleSignUp}
       />
 
       <DetailModal 

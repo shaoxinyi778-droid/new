@@ -105,7 +105,7 @@ export const TopBar: React.FC<TopBarProps> = ({
               onClick={onAuthClick}
               className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-3 py-1.5"
             >
-              登录 / 注册
+              登录
             </button>
           )}
         </div>
