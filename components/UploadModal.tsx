@@ -300,6 +300,9 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         // Upload to remote storage
         addLog(`上传至云端...`, 'loading');
         const { publicUrl, path } = await uploadVideoFile(file);
+        // Upload to remote storage
+        addLog(`上传至云端...`, 'loading');
+        const { publicUrl } = await uploadVideoFile(file);
         
         const newVideo: Video = {
           id: videoId,
