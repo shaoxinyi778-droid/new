@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LogItem, Video, Project } from '../types';
-import { saveVideoFile } from '../utils/db';
+import { uploadVideoFile, saveVideoMetadata } from '../supabase';
 
 // Declare globals for TFJS/COCO-SSD loaded via script tags
 declare global {
@@ -16,6 +16,7 @@ interface UploadModalProps {
   projects?: Project[];
   initialProjectId?: number;
   existingVideos: Video[]; // Added to check for duplicates
+  userId?: string;
 }
 
 export const UploadModal: React.FC<UploadModalProps> = ({ 
@@ -24,7 +25,8 @@ export const UploadModal: React.FC<UploadModalProps> = ({
   onComplete, 
   projects = [], 
   initialProjectId,
-  existingVideos 
+  existingVideos,
+  userId
 }) => {
   const [uploadState, setUploadState] = useState<'idle' | 'uploading' | 'complete'>('idle');
   const [selectedFiles, setSelectedFiles] = useState<File[]>([]);
@@ -291,6 +293,13 @@ export const UploadModal: React.FC<UploadModalProps> = ({
         
         const videoId = Date.now() + Math.random();
 
+        if (!userId) {
+          throw new Error('未登录，无法上传到云端。');
+        }
+
+        // Upload to remote storage
+        addLog(`上传至云端...`, 'loading');
+        const { publicUrl, path } = await uploadVideoFile(file);
         // Upload to remote storage
         addLog(`上传至云端...`, 'loading');
         const { publicUrl } = await uploadVideoFile(file);
@@ -306,8 +315,11 @@ export const UploadModal: React.FC<UploadModalProps> = ({
           uploadDate: new Date().toISOString().split('T')[0],
           url: publicUrl,
           thumbnail: result.thumbnailBase64,
-          projectId: finalProjectId
+          projectId: finalProjectId,
+          storagePath: path
         };
+
+        await saveVideoMetadata(newVideo, userId);
 
         // Mark as processed to prevent duplicates within the same batch
         processedFileNames.add(file.name);

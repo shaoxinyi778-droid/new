@@ -13,6 +13,7 @@ export interface Video {
   url?: string;        // Real video URL (blob or remote)
   thumbnail?: string;  // Base64 thumbnail image
   projectId?: number;  // ID of the custom project folder
+  storagePath?: string; // Remote storage path for deletions
 }
 
 export interface Project {
