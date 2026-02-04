@@ -1,4 +1,5 @@
 import React, { useState, useMemo, useEffect } from 'react';
+import { Session } from '@supabase/supabase-js';
 import { Sidebar } from './components/Sidebar';
 import { TopBar } from './components/TopBar';
 import { VideoCard } from './components/VideoCard';
@@ -6,9 +7,11 @@ import { BatchActionBar } from './components/BatchActionBar';
 import { UploadModal } from './components/UploadModal';
 import { DetailModal } from './components/DetailModal';
 import { Toast, ToastState } from './components/Toast';
+import { AuthModal } from './components/AuthModal';
 import { MOCK_VIDEOS } from './constants';
 import { FilterFolder, TopFilterState, Video, Project } from './types';
 import { getVideoFile, deleteVideoFile, getStorageUsage, exportDatabaseConfig, importDatabaseConfig } from './utils/db';
+import { deleteRemoteVideo, fetchVideos, getCurrentSession, onAuthStateChange, signInWithEmail, signOut, signUpWithEmail } from './supabase';
 
 function App() {
   // Data State with Persistence
@@ -34,6 +37,8 @@ function App() {
   });
 
   const [storageUsage, setStorageUsage] = useState({ used: 0, quota: 0 });
+  const [session, setSession] = useState<Session | null>(null);
+  const [isAuthModalOpen, setIsAuthModalOpen] = useState(false);
 
   // Modal State
   const [isUploadModalOpen, setIsUploadModalOpen] = useState(false);
@@ -124,6 +129,44 @@ function App() {
     setToast({ message, type, visible: true });
     setTimeout(() => setToast(prev => ({ ...prev, visible: false })), 3000);
   };
+
+  useEffect(() => {
+    let subscription: { unsubscribe: () => void } | null = null;
+    const bootstrap = async () => {
+      try {
+        const currentSession = await getCurrentSession();
+        setSession(currentSession);
+      } catch (error) {
+        console.error("Failed to get session", error);
+      }
+
+      try {
+        const { data } = onAuthStateChange((nextSession) => setSession(nextSession));
+        subscription = data.subscription;
+      } catch (error) {
+        console.error("Failed to listen auth changes", error);
+      }
+    };
+
+    bootstrap();
+    return () => {
+      if (subscription) subscription.unsubscribe();
+    };
+  }, []);
+
+  useEffect(() => {
+    if (!session?.user?.id) return;
+    const loadRemote = async () => {
+      try {
+        const remoteVideos = await fetchVideos(session.user.id);
+        setVideos(remoteVideos.length ? remoteVideos : []);
+      } catch (error) {
+        console.error("Failed to load remote videos", error);
+        showToast('同步云端视频失败，请稍后重试', 'error');
+      }
+    };
+    loadRemote();
+  }, [session?.user?.id]);
 
   // ---------------- Data Import/Export Logic ----------------
   const handleExportDB = () => {
@@ -310,8 +353,16 @@ function App() {
       // Iterate and delete from DB
       const idsToDelete = Array.from(selectedIds) as number[];
       
-      // We use Promise.all to process concurrent DB deletions (IndexedDB handles concurrency well)
-      await Promise.all(idsToDelete.map(id => deleteVideoFile(id)));
+      if (session?.user?.id) {
+        await Promise.all(idsToDelete.map(id => {
+          const targetVideo = videos.find(v => v.id === id);
+          if (!targetVideo) return Promise.resolve();
+          return deleteRemoteVideo(targetVideo, session.user.id);
+        }));
+      } else {
+        // We use Promise.all to process concurrent DB deletions (IndexedDB handles concurrency well)
+        await Promise.all(idsToDelete.map(id => deleteVideoFile(id)));
+      }
       
       // Update State
       setVideos(prev => prev.filter(v => !selectedIds.has(v.id)));
@@ -379,10 +430,15 @@ function App() {
       // Permanent Delete
       if (!window.confirm("确定要彻底删除此视频吗？此操作无法撤销。")) return;
       
-      // Clean up from IndexedDB
-      deleteVideoFile(id)
-        .then(() => updateStorageInfo()) // Update storage
-        .catch(err => console.error("DB Cleanup failed", err));
+      if (session?.user?.id) {
+        deleteRemoteVideo(targetVideo, session.user.id)
+          .catch(err => console.error("Remote delete failed", err));
+      } else {
+        // Clean up from IndexedDB
+        deleteVideoFile(id)
+          .then(() => updateStorageInfo()) // Update storage
+          .catch(err => console.error("DB Cleanup failed", err));
+      }
 
       setVideos(prev => prev.filter(v => v.id !== id));
       setSelectedVideoDetail(null);
@@ -422,6 +478,31 @@ function App() {
     updateStorageInfo(); // Update storage
   };
 
+  const handleOpenUpload = () => {
+    if (!session?.user?.id) {
+      showToast('请先登录后再上传', 'error');
+      setIsAuthModalOpen(true);
+      return;
+    }
+    setIsUploadModalOpen(true);
+  };
+
+  const handleSignIn = async (email: string, password: string) => {
+    await signInWithEmail(email, password);
+    showToast('登录成功', 'success');
+  };
+
+  const handleSignUp = async (email: string, password: string) => {
+    await signUpWithEmail(email, password);
+    showToast('注册成功，请检查邮箱确认', 'success');
+  };
+
+  const handleSignOut = async () => {
+    await signOut();
+    setVideos([]);
+    showToast('已退出登录', 'success');
+  };
+
   // ---------------- Helper for Title ----------------
   const getFolderTitle = () => {
     if (currentFolder.startsWith('project-')) {
@@ -447,7 +528,7 @@ function App() {
       <Sidebar 
         currentFolder={currentFolder} 
         onFilterChange={setCurrentFolder} 
-        onUploadClick={() => setIsUploadModalOpen(true)}
+        onUploadClick={handleOpenUpload}
         projects={projects}
         onCreateProject={handleCreateProject}
         onDeleteProject={handleDeleteProject}
@@ -464,6 +545,9 @@ function App() {
           onToggleSelectionMode={toggleSelectionMode}
           topFilter={topFilter}
           onTopFilterChange={(k, v) => setTopFilter(prev => ({ ...prev, [k]: v }))}
+          userEmail={session?.user?.email}
+          onAuthClick={() => setIsAuthModalOpen(true)}
+          onSignOut={handleSignOut}
         />
 
         <div className="flex-1 overflow-y-auto p-6 pb-24">
@@ -483,9 +567,9 @@ function App() {
             <div className="flex flex-col items-center justify-center h-64 text-gray-400">
               <i className="fa-regular fa-folder-open text-5xl mb-4"></i>
               <p>该文件夹下暂无内容</p>
-              {currentFolder.startsWith('project-') && (
+                  {currentFolder.startsWith('project-') && (
                 <button 
-                    onClick={() => setIsUploadModalOpen(true)}
+                    onClick={handleOpenUpload}
                     className="mt-4 text-indigo-600 hover:text-indigo-800 text-sm font-medium"
                 >
                     去上传视频到此项目
@@ -526,6 +610,14 @@ function App() {
         projects={projects}
         initialProjectId={currentFolder.startsWith('project-') ? parseInt(currentFolder.split('-')[1]) : undefined}
         existingVideos={videos}
+        userId={session?.user?.id}
+      />
+
+      <AuthModal
+        isOpen={isAuthModalOpen}
+        onClose={() => setIsAuthModalOpen(false)}
+        onSignIn={handleSignIn}
+        onSignUp={handleSignUp}
       />
 
       <DetailModal 

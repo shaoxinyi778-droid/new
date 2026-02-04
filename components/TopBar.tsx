@@ -8,6 +8,9 @@ interface TopBarProps {
   onToggleSelectionMode: () => void;
   topFilter: TopFilterState;
   onTopFilterChange: (key: keyof TopFilterState, value: string) => void;
+  userEmail?: string | null;
+  onAuthClick: () => void;
+  onSignOut: () => void;
 }
 
 export const TopBar: React.FC<TopBarProps> = ({
@@ -16,7 +19,10 @@ export const TopBar: React.FC<TopBarProps> = ({
   isSelectionMode,
   onToggleSelectionMode,
   topFilter,
-  onTopFilterChange
+  onTopFilterChange,
+  userEmail,
+  onAuthClick,
+  onSignOut
 }) => {
 
   const getBtnClass = (isActive: boolean) => 
@@ -78,6 +84,30 @@ export const TopBar: React.FC<TopBarProps> = ({
         <div className="border-l border-gray-300 pl-4 flex gap-2 text-gray-400">
           <button className="text-indigo-600 hover:text-indigo-700"><i className="fa-solid fa-table-cells-large text-lg"></i></button>
           <button className="hover:text-gray-600"><i className="fa-solid fa-list text-lg"></i></button>
+        </div>
+
+        <div className="border-l border-gray-200 pl-4 flex items-center gap-3">
+          {userEmail ? (
+            <>
+              <div className="flex items-center gap-2 text-xs text-gray-500 bg-gray-50 px-3 py-1.5 rounded-lg border border-gray-200">
+                <i className="fa-regular fa-user"></i>
+                <span className="max-w-[160px] truncate">{userEmail}</span>
+              </div>
+              <button
+                onClick={onSignOut}
+                className="text-sm text-gray-600 hover:text-gray-800 border border-gray-200 rounded-lg px-3 py-1.5 bg-white hover:bg-gray-50"
+              >
+                退出
+              </button>
+            </>
+          ) : (
+            <button
+              onClick={onAuthClick}
+              className="text-sm text-white bg-indigo-600 hover:bg-indigo-700 rounded-lg px-3 py-1.5"
+            >
+              登录 / 注册
+            </button>
+          )}
         </div>
       </div>
     </header>
