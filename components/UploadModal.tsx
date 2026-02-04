@@ -1,6 +1,6 @@
 import React, { useEffect, useState, useRef } from 'react';
 import { LogItem, Video, Project } from '../types';
-import { saveVideoFile } from '../utils/db';
+import { uploadVideoFile } from '../supabase';
 
 // Declare globals for TFJS/COCO-SSD loaded via script tags
 declare global {
